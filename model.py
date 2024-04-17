@@ -52,7 +52,7 @@ class PixelCNNLayer_down(nn.Module):
 
 class PixelCNN(nn.Module):
     def __init__(self, nr_resnet=5, nr_filters=80, nr_logistic_mix=10,
-                    resnet_nonlinearity='concat_elu', input_channels=3):
+                    resnet_nonlinearity='concat_elu', input_channels=3, num_classes=4):
         super(PixelCNN, self).__init__()
         if resnet_nonlinearity == 'concat_elu' :
             self.resnet_nonlinearity = lambda x : concat_elu(x)
@@ -95,9 +95,18 @@ class PixelCNN(nn.Module):
         num_mix = 3 if self.input_channels == 1 else 10
         self.nin_out = nin(nr_filters, num_mix * nr_logistic_mix)
         self.init_padding = None
+        # Add the embedding layer
+        self.embedding = nn.Embedding(num_classes, input_channels)
+
+        # Final fully connected layer for classification
+        self.fc = nn.Linear(nr_filters, num_classes)
 
 
-    def forward(self, x, sample=False):
+    def forward(self, x, labels, sample=False):
+        # x shape is 16 x 3 x 32 x 32
+        # labels shape is 16 x 1
+        # Concatenate conditional information (class labels) with the input
+
         # similar as done in the tf repo :
         if self.init_padding is not sample:
             xs = [int(y) for y in x.size()]
@@ -140,6 +149,10 @@ class PixelCNN(nn.Module):
 
         x_out = self.nin_out(F.elu(ul))
 
+        y_emb = self.embedding(labels).unsqueeze(2).unsqueeze(3)
+        x_out = torch.cat((x_out, y_emb.expand(-1, -1, x_out.size(2), x_out.size(3))), dim=1)
+
+        breakpoint()
         assert len(u_list) == len(ul_list) == 0, pdb.set_trace()
 
         return x_out

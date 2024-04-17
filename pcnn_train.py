@@ -24,9 +24,16 @@ def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, m
     loss_tracker = mean_tracker()
     
     for batch_idx, item in enumerate(tqdm(data_loader)):
-        model_input, _ = item
+        model_input, labels = item
+
+        # Convert the labels to tensor
+        labels = torch.tensor([my_bidict[item] for item in labels])
+
         model_input = model_input.to(device)
-        model_output = model(model_input)
+        labels = labels.to(device)
+
+        # Call the model with the input and labels
+        model_output = model(model_input, labels)
         loss = loss_op(model_input, model_output)
         loss_tracker.update(loss.item()/deno)
         if mode == 'training':
@@ -119,7 +126,7 @@ if __name__ == '__main__':
 
     #set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    kwargs = {'num_workers':1, 'pin_memory':True, 'drop_last':True}
+    kwargs = {'num_workers':0, 'pin_memory':True, 'drop_last':True}
 
     # set data
     if "mnist" in args.dataset:
@@ -178,7 +185,7 @@ if __name__ == '__main__':
     sample_op = lambda x : sample_from_discretized_mix_logistic(x, args.nr_logistic_mix)
 
     model = PixelCNN(nr_resnet=args.nr_resnet, nr_filters=args.nr_filters, 
-                input_channels=input_channels, nr_logistic_mix=args.nr_logistic_mix)
+                input_channels=input_channels, nr_logistic_mix=args.nr_logistic_mix, num_classes=len(my_bidict))
     model = model.to(device)
 
     if args.load_params:
