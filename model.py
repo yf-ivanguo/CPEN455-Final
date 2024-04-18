@@ -59,6 +59,7 @@ class PixelCNN(nn.Module):
         else :
             raise Exception('right now only concat elu is supported as resnet nonlinearity.')
 
+        self.num_classes = num_classes
         self.nr_filters = nr_filters
         self.input_channels = input_channels
         self.nr_logistic_mix = nr_logistic_mix
@@ -95,17 +96,18 @@ class PixelCNN(nn.Module):
         num_mix = 3 if self.input_channels == 1 else 10
         self.nin_out = nin(nr_filters, num_mix * nr_logistic_mix)
         self.init_padding = None
+
         # Add the embedding layer
-        self.embedding = nn.Embedding(num_classes, input_channels)
+        self.embedding = nn.Embedding(num_classes, input_channels * 32 * 32)
 
-        # Final fully connected layer for classification
-        self.fc = nn.Linear(nr_filters, num_classes)
-
+    # Add the embeddings to the input
+    def addPositionalEmbedding(self, x, labels, img_height, img_width):
+        embs = self.input_embeddings(labels).view(-1, self.input_channels, img_height, img_width)
+        return x + embs
 
     def forward(self, x, labels, sample=False):
-        # x shape is 16 x 3 x 32 x 32
-        # labels shape is 16 x 1
-        # Concatenate conditional information (class labels) with the input
+        _, _, H, W = x.size()
+        x = self.addPositionalEmbedding(x, labels, H, W)
 
         # similar as done in the tf repo :
         if self.init_padding is not sample:
@@ -149,13 +151,24 @@ class PixelCNN(nn.Module):
 
         x_out = self.nin_out(F.elu(ul))
 
-        y_emb = self.embedding(labels).unsqueeze(2).unsqueeze(3)
-        x_out = torch.cat((x_out, y_emb.expand(-1, -1, x_out.size(2), x_out.size(3))), dim=1)
-
-        breakpoint()
         assert len(u_list) == len(ul_list) == 0, pdb.set_trace()
 
         return x_out
+    
+    # Run model inference
+    def infer_img(self, x):
+        B, _, _, _ = x.size()
+        inferred_loss = torch.zeros((self.num_classes, B))
+
+        # Get the loss for each class
+        for i in range(self.num_classes):
+            # Run the model with each inferred label to get the loss
+            inferred_label = torch.ones(B, dtype=torch.int64) * i
+            model_output = self(x, inferred_label)
+            inferred_loss[i] = discretized_mix_logistic_loss(x, model_output, True)
+
+        losses, labels = torch.min(inferred_loss, dim=0)
+        return losses, labels
     
     
 class random_classifier(nn.Module):
