@@ -102,7 +102,7 @@ class PixelCNN(nn.Module):
 
     # Add the embeddings to the input
     def addPositionalEmbedding(self, x, labels, img_height, img_width):
-        embs = self.input_embeddings(labels).view(-1, self.input_channels, img_height, img_width)
+        embs = self.embedding(labels).view(-1, self.input_channels, img_height, img_width)
         return x + embs
 
     def forward(self, x, labels, sample=False):
@@ -156,14 +156,14 @@ class PixelCNN(nn.Module):
         return x_out
     
     # Run model inference
-    def infer_img(self, x):
+    def infer_img(self, x, device):
         B, _, _, _ = x.size()
-        inferred_loss = torch.zeros((self.num_classes, B))
+        inferred_loss = torch.zeros((self.num_classes, B)).to(device)
 
         # Get the loss for each class
         for i in range(self.num_classes):
             # Run the model with each inferred label to get the loss
-            inferred_label = torch.ones(B, dtype=torch.int64) * i
+            inferred_label = (torch.ones(B, dtype=torch.int64) * i).to(device)
             model_output = self(x, inferred_label)
             inferred_loss[i] = discretized_mix_logistic_loss(x, model_output, True)
 

@@ -22,7 +22,6 @@ def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, m
         
     deno =  args.batch_size * np.prod(args.obs) * np.log(2.)        
     loss_tracker = mean_tracker()
-    train_acc_tracker = mean_tracker()
     val_acc_tracker = mean_tracker()
     
     for _, item in enumerate(tqdm(data_loader)):
@@ -45,9 +44,6 @@ def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, m
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-
-                _, label_preds = model.infer_img(model_input, device)
-                train_acc_tracker.update(torch.sum(label_preds == labels).item()/args.batch_size)
             else:
                 _, label_preds = model.infer_img(model_input, device)
                 val_acc_tracker.update(torch.sum(label_preds == labels).item()/args.batch_size)
@@ -55,8 +51,8 @@ def train_or_test(model, data_loader, optimizer, loss_op, device, args, epoch, m
     if args.en_wandb:
         wandb.log({mode + "-Average-BPD" : loss_tracker.get_mean()})
         wandb.log({mode + "-epoch": epoch})
-        tracker = train_acc_tracker if mode == 'training' else val_acc_tracker
-        wandb.log({mode + "-Accuracy": tracker.get_mean()})
+        if mode == 'val':
+            wandb.log({"val-Accuracy": val_acc_tracker.get_mean()})
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -140,6 +136,7 @@ if __name__ == '__main__':
     #set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     kwargs = {'num_workers':0, 'pin_memory':True, 'drop_last':True}
+    print('Using device:', device)
 
     # set data
     if "mnist" in args.dataset:
@@ -242,7 +239,7 @@ if __name__ == '__main__':
         
         if epoch % args.sampling_interval == 0:
             print('......sampling......')
-            labels = torch.randint(0, num_classes, (args.sample_batch_size,)).to(next(model.parameters()).device) if not labels else labels
+            labels = torch.randint(0, num_classes, (args.sample_batch_size,)).to(next(model.parameters()).device)
             sample_t = sample(model, args.sample_batch_size, args.obs, sample_op, labels=labels)
             sample_t = rescaling_inv(sample_t)
             save_images(sample_t, args.sample_dir)
