@@ -13,7 +13,6 @@ from dataset import *
 from tqdm import tqdm
 from pprint import pprint
 import argparse
-import csv
 NUM_CLASSES = len(my_bidict)
 
 # Write your code here
@@ -24,11 +23,10 @@ def get_label(model, model_input, device):
     return labels
 # End of your code
 
-def classifier(model, data_loader, device, dataset, generate_csv=False):
+def classifier(model, data_loader, device):
     model.eval()
     acc_tracker = ratio_tracker()
-    preds = []
-    for _, item in enumerate(tqdm(data_loader)):
+    for batch_idx, item in enumerate(tqdm(data_loader)):
         model_input, categories = item
         model_input = model_input.to(device)
         original_label = [my_bidict[item] for item in categories]
@@ -36,17 +34,7 @@ def classifier(model, data_loader, device, dataset, generate_csv=False):
         answer = get_label(model, model_input, device)
         correct_num = torch.sum(answer == original_label)
         acc_tracker.update(correct_num.item(), model_input.shape[0])
-        preds.append(answer)
     
-    if generate_csv:
-        preds = torch.cat(preds, -1)
-        with open("data/submission.csv", mode='w', newline='') as file:
-            writer = csv.writer (file)
-            writer.writerow(['id', 'label'])
-            for img_path, label in zip(data_loader.dataset.samples, preds):
-                img_name = os.path.basename(img_path[0])
-                writer.writerow([img_name, label.item()])
-
     return acc_tracker.get_ratio()
         
 
@@ -59,8 +47,6 @@ if __name__ == '__main__':
                         default=32, help='Batch size for inference')
     parser.add_argument('-m', '--mode', type=str,
                         default='validation', help='Mode for the dataset')
-    parser.add_argument('-csv', '--generate_csv', type=bool,
-                        default=False, help='Whether to generate csv file')
     
     args = parser.parse_args()
     pprint(args.__dict__)
@@ -68,8 +54,9 @@ if __name__ == '__main__':
     kwargs = {'num_workers':0, 'pin_memory':True, 'drop_last':False}
 
     ds_transforms = transforms.Compose([transforms.Resize((32, 32)), rescaling])
-    ds = CPEN455Dataset(root_dir=args.data_dir, mode=args.mode, transform=ds_transforms)
-    dataloader = torch.utils.data.DataLoader(ds, 
+    dataloader = torch.utils.data.DataLoader(CPEN455Dataset(root_dir=args.data_dir, 
+                                                            mode = args.mode, 
+                                                            transform=ds_transforms), 
                                              batch_size=args.batch_size, 
                                              shuffle=True, 
                                              **kwargs)
@@ -86,7 +73,7 @@ if __name__ == '__main__':
     model.load_state_dict(torch.load('models/conditional_pixelcnn.pth'))
     model.eval()
     print('model parameters loaded')
-    acc = classifier(model = model, data_loader = dataloader, device = device, dataset = ds, generate_csv=args.generate_csv)
+    acc = classifier(model = model, data_loader = dataloader, device = device)
     print(f"Accuracy: {acc}")
         
         
