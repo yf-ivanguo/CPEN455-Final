@@ -1,8 +1,7 @@
 '''
-This code is used to generate the final result csv file. Most of this file is
-copied over from classification_evaluation, but since we are not allowed to modify
-the classification_evaluation file, we have to create a new file to generate the
-final result csv file.
+This code is used to generate the final submission csv file and .npy logits output of the test set.
+Most of this file iscopied over from classification_evaluation, but since we are not allowed to modify
+the classification_evaluation file, we have to create a new file.
 '''
 
 from torchvision import transforms
@@ -15,20 +14,28 @@ import argparse
 import csv
 NUM_CLASSES = len(my_bidict)
 
-def get_label(model, model_input, device):
-    _, labels = model.infer_img(model_input, device)
-    return labels
+def get_label_and_losses(model, model_input, device):
+    _, labels, losses = model.infer_img(model_input, device)
+    return labels, losses
 
-# Modified to include dataset to write to csv
+# Modified to include dataset to write to csv and npy
 def classifier(model, data_loader, device, ds):
     model.eval()
     preds = []
+    logits = []
     for _, item in enumerate(tqdm(data_loader)):
         model_input, _ = item
         model_input = model_input.to(device)
-        pred = get_label(model, model_input, device)
+        pred, losses = get_label_and_losses(model, model_input, device)
         preds.append(pred)
+        logits = np.append(logits, losses.cpu().detach().numpy())
     preds = torch.cat(preds, -1)
+
+    # Reshape the logits array
+    logits = logits.reshape(-1, NUM_CLASSES)
+    print(logits.shape)
+    print(logits)
+    np.save('test_logits.npy', logits)
 
     # write the final result csv file
     with open("submission.csv", mode='w', newline='') as file:

@@ -167,9 +167,9 @@ class PixelCNN(nn.Module):
             model_output = self(x, inferred_label)
             inferred_loss[i] = discretized_mix_logistic_loss(x, model_output, True)
 
+        # Get the minimum loss and the corresponding label
         losses, labels = torch.min(inferred_loss, dim=0)
-        return losses, labels
-    
+        return losses, labels, inferred_loss
     
 class random_classifier(nn.Module):
     def __init__(self, NUM_CLASSES):

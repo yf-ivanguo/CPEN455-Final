@@ -98,6 +98,7 @@ def discretized_mix_logistic_loss(x, l, compute_individual_loss=False):
     log_probs        = cond * log_cdf_plus + (1. - cond) * inner_out
     log_probs        = torch.sum(log_probs, dim=3) + log_prob_from_logits(logit_probs)
     
+    # Check if we need to compute individual loss
     return -torch.sum(log_sum_exp(log_probs), dim=[1,2]) if compute_individual_loss else -torch.sum(log_sum_exp(log_probs)) 
 
 
